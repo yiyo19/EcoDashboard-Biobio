@@ -1,0 +1,14 @@
+{
+  "parametros_globales": {
+    "factor_emision": {
+      "valor": 0.2421,
+      "unidad": "kg CO2eq/kWh",
+      "fuente": "HuellaChile / Energía Abierta",
+      "ano": 2023
+    },
+    "semanas_por_mes": {
+      "valor": 4.33,
+      "justificacion": "52 semanas / 12 meses"
+    }
+  }
+}
