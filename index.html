@@ -63,8 +63,6 @@ footer{text-align:center;color:var(--mu);font-size:13px;padding:10px 20px 30px}
 <body>
 <header>
   <h1>🌱 EcoDashboard TI</h1>
-  <h2>Mapa de Instituciones Monitoreadas - Biobío</h2>
-<div id="mapa-biobio" style="height: 400px; width: 100%; border-radius: 8px; margin-top: 20px; border: 2px solid #ccc;"></div>
   <nav aria-label="Secciones">
     <a href="#panel">Panel</a><a href="#labs">Laboratorios</a><a href="#alertas">Alertas</a><a href="#impacto">Impacto ambiental</a><a href="#ods">ODS</a><a href="#historial">Historial</a>
   </nav>
@@ -115,6 +113,12 @@ footer{text-align:center;color:var(--mu);font-size:13px;padding:10px 20px 30px}
   <div class="card tw"><table><thead><tr><th>Fecha y hora</th><th>Laboratorio</th><th>Equipos afectados</th><th>Acción</th></tr></thead><tbody id="log"></tbody></table></div>
 </section>
 </main>
+  <section id="mapa-regional" style="padding: 20px; background-color: var(--bg); margin: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+  <h2 style="color: var(--fg); margin-bottom: 15px; border-bottom: 2px solid var(--bd); padding-bottom: 10px;">
+    Mapa de Instituciones Monitoreadas - Biobío
+  </h2>
+  <div id="mapa-biobio" style="height: 450px; width: 100%; border-radius: 8px; border: 2px solid var(--bd);"></div>
+</section>
 <footer>EcoDashboard TI · Certamen 2 · Sustentabilidad y Medioambiente · IP Virginio Gómez, sede Los Ángeles</footer>
 
 <dialog id="dlg"><p id="dm"></p><div class="row" style="justify-content:flex-end"><button class="btn sec" id="no">Cancelar</button><button class="btn" id="si">Confirmar</button></div></dialog>
