@@ -361,7 +361,19 @@ footer{
     color:var(--mu);
 }
 
+
+/* Semana 3 */
+.w3-note{font-size:13px;color:var(--mu);margin:8px 0}
+.w3-stat{font-size:23px;font-weight:750;color:var(--g7)}
+.w3-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.w3-chart{position:relative;height:300px;width:100%}
+.w3-light{display:inline-block;padding:8px 15px;border-radius:8px;font-weight:700;background:#e6ebe8}
+.w3-green{background:#d5f1e4;color:#126343}.w3-yellow{background:#fff0c9;color:#815600}.w3-red{background:#fde3df;color:#a22f25}
+.w3-controls label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:650}
+.w3-controls input,.w3-controls select{max-width:260px}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
 </head>
 
 
@@ -390,6 +402,11 @@ footer{
 <a href="#ods">ODS</a>
 
 <a href="#historial">Historial</a>
+<a href="#costos">Costos</a>
+<a href="#reportes">Reportes</a>
+<a href="#graficos">Gráficos</a>
+<a href="#semaforo">Semáforo</a>
+<a href="#liga-verde">Liga Verde</a>
 
 </nav>
 
@@ -976,6 +993,20 @@ mediciones reales del proyecto.
 </section>
 
 
+
+<!-- SEMANA 3: VALOR AGREGADO -->
+<section id="costos"><h2>Costos eléctricos referenciales (M4)</h2>
+<div class="card"><p class="w3-note">Ingresa el cargo de energía CLP/kWh de una boleta o pliego de la distribuidora. No se incorpora ninguna tarifa ficticia como oficial. La estimación considera únicamente energía, no cargos fijos, potencia, impuestos u otros conceptos de facturación.</p>
+<div class="row w3-controls"><label>Tarifa CLP/kWh<input id="w3Tarifa" type="number" min="0" step="0.01" placeholder="Ej.: valor de tu boleta"></label><label>Fuente de la tarifa<input id="w3FuenteTarifa" placeholder="Distribuidora y documento"></label><label>Fecha de vigencia<input id="w3FechaTarifa" type="date"></label><button class="btn" onclick="w3GuardarTarifa()">Guardar tarifa</button></div><p id="w3AvisoTarifa" class="w3-note" role="status"></p>
+<div class="tw"><table><thead><tr><th>Institución</th><th>Equipos inventariados</th><th>Consumo estimado mensual</th><th>Emisiones estimadas</th><th>Costo referencial</th></tr></thead><tbody id="w3TablaCostos"></tbody></table></div><p class="w3-note">Modelo ilustrativo: consumo de equipos en espera durante 118 h/semana × semanas por mes. Se usa la potencia en espera del inventario; no representa una medición real ni una boleta eléctrica.</p></div></section>
+<section id="reportes"><h2>Reporte mensual descargable (M5)</h2><div class="card">
+<div class="row w3-controls"><label>Institución<select id="w3InstReporte" onchange="w3Actualizar()"></select></label><label>Mes de reporte<input id="w3Mes" type="month" onchange="w3Actualizar()"></label></div>
+<div id="w3ResumenReporte" class="grid"></div><div class="row"><button class="btn" onclick="w3DescargarCSV()">Descargar CSV</button><button class="btn" onclick="w3DescargarPDF()">Descargar PDF</button></div><p id="w3ReporteMensaje" class="w3-note" role="status"></p>
+<p class="w3-note">El reporte documenta la metodología, fuente y año del factor de emisión, tarifa (si está verificada) y condición de datos de demostración. No es un reporte oficial de HuellaChile ni de Gestiona Energía.</p></div></section>
+<section id="graficos"><h2>Gráficos y comparación de instituciones</h2><div class="w3-grid"><div class="card"><h3>Consumo mensual estimado por institución</h3><div class="w3-chart"><canvas id="w3ChartInst"></canvas></div></div><div class="card"><h3>Tendencia mensual ilustrativa</h3><div class="w3-chart"><canvas id="w3ChartMes"></canvas></div></div></div><p class="w3-note">Comparación normalizada por kWh/equipo. La tendencia usa la misma estimación mensual repetida para seis meses: no se presenta como historial medido.</p></section>
+<section id="semaforo"><h2>Semáforo de carbono (M2)</h2><div class="card"><p class="w3-note">Demostración educativa por escenarios, no intensidad de carbono horaria real. Para recomendar horarios reales se requiere integrar datos horarios del Coordinador Eléctrico Nacional.</p><div class="row w3-controls"><label>Escenario de generación<select id="w3Escenario" onchange="w3Actualizar()"><option value="baja">Mayor participación de fuentes bajas en carbono</option><option value="media">Mezcla intermedia</option><option value="alta">Mayor participación de fuentes emisoras</option></select></label></div><p><span id="w3Luz" class="w3-light"></span></p><p id="w3Consejo"></p></div></section>
+<section id="liga-verde"><h2>Liga Verde de Laboratorios (M10)</h2><div class="card"><p class="w3-note">Ranking ilustrativo de menor consumo mensual estimado por equipo (kWh/equipo). Se calcula solo con los modelos inventariados; no acredita eficiencia real ni reducciones medidas.</p><div class="tw"><table><thead><tr><th>Posición</th><th>Institución</th><th>kWh/equipo/mes</th><th>Insignia ilustrativa</th></tr></thead><tbody id="w3TablaLiga"></tbody></table></div><p class="w3-note">Meta sugerida: reducir 5 % del consumo estimado respecto de una línea base verificada. Las insignias son demostrativas hasta contar con mediciones.</p></div></section>
+
 </main>
 
 
@@ -1556,7 +1587,7 @@ function agregarInstitucion(){
     renderInstituciones();
 
     actualizarMapa();
-
+    w3Actualizar();
 
     $("instNombre").value="";
     $("instComuna").value="";
@@ -1694,7 +1725,7 @@ function agregarInventario(){
     guardarInventario();
 
     renderInventario();
-
+    w3Actualizar();
 
     $("invModelo").value="";
     $("invCantidad").value="";
@@ -2602,7 +2633,10 @@ fetch("config.json")
         data.parametros_globales
         .semanas_por_mes.valor;
 
+    const meta=data.parametros_globales.factor_emision;
+    w3FactorMeta={fuente:String(meta.fuente||"config.json"),anio:String(meta.anio||meta.año||meta.year||"Año no especificado")};
     render();
+    w3Actualizar();
 
 })
 
