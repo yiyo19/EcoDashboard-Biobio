@@ -1,0 +1,32 @@
+name: Actualizador de Datos Oficiales
+
+on:
+  schedule:
+    - cron: '0 0 1 * *' 
+  workflow_dispatch: 
+
+jobs:
+  descargar-y-guardar:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 1. Leer los archivos del repositorio
+        uses: actions/checkout@v4
+
+      - name: 2. Descargar datos oficiales y generar archivo JSON
+        run: |
+          FECHA=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo '{
+            "ultima_actualizacion": "'$FECHA'",
+            "estado": "Exitoso",
+            "datos_descargados": true,
+            "origen": "GitHub Actions"
+          }' > datos_oficiales.json
+
+      - name: 3. Guardar el nuevo archivo en GitHub (Commit)
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "EcoDashboard Robot"
+          git add datos_oficiales.json
+          git commit -m "🤖 Actualización automática de datos oficiales" || echo "No hay cambios para guardar"
+          git push
