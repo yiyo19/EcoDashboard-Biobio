@@ -15,6 +15,106 @@
 
 <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+
+/* =====================================================
+   SEMANA 3: FUNCIONES RESTAURADAS
+===================================================== */
+let w3FactorMeta={fuente:'config.json (verificar fuente)',anio:'No especificado'};
+const w3Get=(id)=>document.getElementById(id);
+const w3Safe=(x)=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const w3Num=(n,d=2)=>Number(n||0).toLocaleString('es-CL',{minimumFractionDigits:d,maximumFractionDigits:d});
+let w3ChartA=null,w3ChartB=null;
+function w3Tarifa(){try{return JSON.parse(localStorage.getItem('eco_tarifa_w3')||'null')}catch(e){return null}}
+function w3GuardarTarifa(){
+ const v=w3Get('w3Tarifa').value,fuente=w3Get('w3FuenteTarifa').value.trim(),fecha=w3Get('w3FechaTarifa').value;
+ if(v===''||!Number.isFinite(Number(v))||Number(v)<=0||!fuente||!fecha){w3Get('w3AvisoTarifa').textContent='Ingresa una tarifa positiva, su fuente y fecha de vigencia.';return}
+ localStorage.setItem('eco_tarifa_w3',JSON.stringify({valor:Number(v),fuente,fecha}));
+ w3Get('w3AvisoTarifa').textContent='Tarifa referencial guardada en este navegador (no verificada automáticamente).';w3Actualizar();
+}
+function w3Datos(){return instituciones.map(inst=>{
+ const items=inventario.filter(x=>Number(x.institucionId)===Number(inst.id));
+ const pcs=items.reduce((a,x)=>a+Number(x.cantidad||0),0);
+ const kwh=items.reduce((a,x)=>a+Number(x.cantidad||0)*Number(x.espera||0)/1000*H*W,0);
+ return {inst,pcs,kwh,emisiones:kwh*F,porPC:pcs?kwh/pcs:null};
+})}
+function w3Actualizar(){
+ if(!w3Get('w3TablaCostos'))return;
+ const datos=w3Datos(),tarifa=w3Tarifa();
+ w3Get('w3TablaCostos').innerHTML=datos.map(x=>`<tr><td>${w3Safe(x.inst.nombre)}</td><td>${x.pcs}</td><td>${w3Num(x.kwh)} kWh</td><td>${w3Num(x.emisiones)} kg CO₂eq</td><td>${tarifa?'$'+w3Num(x.kwh*tarifa.valor,0):'Sin tarifa documentada'}</td></tr>`).join('');
+ const sel=w3Get('w3InstReporte'),prev=sel.value;
+ sel.innerHTML=instituciones.map(x=>`<option value="${x.id}">${w3Safe(x.nombre)}</option>`).join('');
+ if(instituciones.some(x=>String(x.id)===prev))sel.value=prev;
+ if(!w3Get('w3Mes').value)w3Get('w3Mes').value=new Date().toISOString().slice(0,7);
+ const x=datos.find(x=>String(x.inst.id)===sel.value);
+ w3Get('w3ResumenReporte').innerHTML=x?`<div class="card"><div class="k">Consumo estimado</div><div class="w3-stat">${w3Num(x.kwh)} kWh</div></div><div class="card"><div class="k">Emisiones estimadas</div><div class="w3-stat">${w3Num(x.emisiones)} kg CO₂eq</div></div><div class="card"><div class="k">Costo de energía</div><div class="w3-stat">${tarifa?'$'+w3Num(x.kwh*tarifa.valor,0):'Sin tarifa'}</div></div>`:'<p>No hay instituciones.</p>';
+ const rank=datos.filter(x=>x.pcs>0).sort((a,b)=>a.porPC-b.porPC);
+ w3Get('w3TablaLiga').innerHTML=rank.length?rank.map((x,i)=>`<tr><td>${i+1}</td><td>${w3Safe(x.inst.nombre)}</td><td>${w3Num(x.porPC)}</td><td>${i===0?'🏅 Referencia ilustrativa':'Participante'}</td></tr>`).join(''):'<tr><td colspan="4">Agrega inventario para comparar.</td></tr>';
+ const estado=w3Get('w3Escenario').value;
+ const sem={baja:['w3-green','Verde · escenario bajo en carbono','En este escenario, la generación tiene menor intensidad de carbono.'],media:['w3-yellow','Amarillo · escenario intermedio','En este escenario, evalúa si es posible desplazar consumos flexibles.'],alta:['w3-red','Rojo · escenario alto en carbono','En este escenario, prioriza evitar consumos innecesarios.']}[estado];
+ w3Get('w3Luz').className='w3-light '+sem[0];w3Get('w3Luz').textContent=sem[1];w3Get('w3Consejo').textContent=sem[2];
+ if(typeof Chart!=='undefined'){
+  if(w3ChartA)w3ChartA.destroy();if(w3ChartB)w3ChartB.destroy();
+  w3ChartA=new Chart(w3Get('w3ChartInst'),{type:'bar',data:{labels:datos.map(x=>x.inst.nombre),datasets:[{label:'kWh por computador/mes',data:datos.map(x=>x.porPC??0),backgroundColor:'#1b7f64'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  const mes=w3Get('w3Mes').value;const meses=Array.from({length:6},(_,i)=>{const [y,m]=mes.split('-').map(Number);return new Date(y,m-1-(5-i),1).toLocaleDateString('es-CL',{month:'short',year:'numeric'})});
+  w3ChartB=new Chart(w3Get('w3ChartMes'),{type:'line',data:{labels:meses,datasets:[{label:'Proyección constante (no histórica), kWh',data:meses.map(()=>datos.reduce((a,x)=>a+x.kwh,0)),borderColor:'#1b7f64',tension:0.1}]},options:{responsive:true,maintainAspectRatio:false}});
+ }
+}
+function w3Reporte(){const x=w3Datos().find(x=>String(x.inst.id)===w3Get('w3InstReporte').value);if(!x)return null;return {x,tarifa:w3Tarifa(),mes:w3Get('w3Mes').value}}
+function w3LineasReporte(){const r=w3Reporte();if(!r)return [];
+ const {x,tarifa,mes}=r;return [
+ 'EcoDashboard Biobío - Reporte mensual estimado',`Mes: ${mes}`,`Institución: ${x.inst.nombre}`,
+ `Equipos inventariados: ${x.pcs}`,`Consumo estimado: ${w3Num(x.kwh)} kWh/mes`,
+ `Emisiones estimadas: ${w3Num(x.emisiones)} kg CO2eq/mes`,
+ `Costo de energía: ${tarifa?w3Num(x.kwh*tarifa.valor,0)+' CLP':'Sin tarifa documentada'}`,
+ `Metodología: suma(cantidad x potencia de espera W / 1000 x ${H} h/semana x ${W} semanas/mes).`,
+ `Factor de emisión: ${F} kg CO2eq/kWh. Fuente: ${w3FactorMeta.fuente}; año: ${w3FactorMeta.anio}.`,
+ `Tarifa: ${tarifa?tarifa.valor+' CLP/kWh; '+tarifa.fuente+'; vigencia '+tarifa.fecha:'No ingresada'}.`,
+ 'Estimación de demostración, no medición de consumo real. El mes es una etiqueta de reporte, no una serie histórica.'
+ ]}
+function w3BlobDownload(content,name,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob(['\ufeff',content],{type}));a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function w3CSV(rows){return rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n')}
+function w3DescargarCSV(){const lines=w3LineasReporte();if(!lines.length)return;w3BlobDownload(w3CSV(lines.map(line=>[line])),`reporte-eco-${w3Get('w3Mes').value}.csv`,'text/csv;charset=utf-8');w3Get('w3ReporteMensaje').textContent='Reporte CSV generado.'}
+function w3DescargarPDF(){const lines=w3LineasReporte();if(!lines.length)return;
+ if(!window.jspdf?.jsPDF){w3Get('w3ReporteMensaje').textContent='No se pudo cargar jsPDF. Comprueba tu conexión a internet.';return}
+ const doc=new window.jspdf.jsPDF();let y=20;for(const line of lines){for(const part of doc.splitTextToSize(line.replace(/CO₂/g,'CO2'),175)){if(y>275){doc.addPage();y=20}doc.text(part,18,y);y+=8}y+=3}
+ doc.save(`reporte-eco-${w3Get('w3Mes').value}.pdf`);w3Get('w3ReporteMensaje').textContent='Reporte PDF generado.'}
+/* =====================================================
+   SEMANA 4: VALIDACIÓN, SCI Y CORRECCIONES
+===================================================== */
+function w4Leer(key){try{const x=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+let w4Pruebas=w4Leer('eco_w4_pruebas'),w4Mejoras=w4Leer('eco_w4_mejoras');
+const w4SCIKey='eco_w4_sci';
+function w4Guardar(){localStorage.setItem('eco_w4_pruebas',JSON.stringify(w4Pruebas));localStorage.setItem('eco_w4_mejoras',JSON.stringify(w4Mejoras))}
+function w4AgregarPrueba(){
+ const participante=w3Get('w4Participante').value.trim(),fecha=w3Get('w4Fecha').value,tiempo=w3Get('w4Tiempo').value;
+ if(!participante||!fecha||tiempo===''||!Number.isFinite(Number(tiempo))||Number(tiempo)<0){w3Get('w4MsgPrueba').textContent='Completa participante, fecha y tiempo válido.';return}
+ w4Pruebas.push({id:Date.now()+Math.random(),participante,fecha,tarea:w3Get('w4Tarea').value,tiempo:Number(tiempo),resultado:w3Get('w4Resultado').value,dificultad:w3Get('w4Dificultad').value.trim(),comentario:w3Get('w4Comentario').value.trim()});
+ w4Guardar();w4Render();w3Get('w4MsgPrueba').textContent='Prueba registrada correctamente.';
+ ['w4Participante','w4Tiempo','w4Dificultad','w4Comentario'].forEach(id=>w3Get(id).value='');
+}
+function w4AgregarMejora(){const problema=w3Get('w4Problema').value.trim(),accion=w3Get('w4Accion').value.trim();if(!problema||!accion){w3Get('w4MsgMejora').textContent='Describe el problema y la acción.';return}
+ w4Mejoras.push({id:Date.now()+Math.random(),fecha:new Date().toLocaleDateString('es-CL'),problema,accion,estado:w3Get('w4Estado').value});w4Guardar();w4Render();w3Get('w4MsgMejora').textContent='Mejora registrada.';w3Get('w4Problema').value='';w3Get('w4Accion').value=''}
+function w4Eliminar(tipo,id){if(!confirm('¿Eliminar este registro?'))return; if(tipo==='pruebas')w4Pruebas=w4Pruebas.filter(x=>x.id!==id);else w4Mejoras=w4Mejoras.filter(x=>x.id!==id);w4Guardar();w4Render()}
+function w4Render(){
+ const participantes=new Set(w4Pruebas.map(x=>x.participante.toLowerCase()));
+ w3Get('w4ResumenPruebas').textContent=`${w4Pruebas.length} pruebas registradas · ${participantes.size} participante(s) distintos · objetivo: 3 personas externas.`;
+ w3Get('w4TablaPruebas').innerHTML=w4Pruebas.length?w4Pruebas.map(x=>`<tr><td>${w3Safe(x.participante)}</td><td>${w3Safe(x.fecha)}</td><td>${w3Safe(x.tarea)}</td><td>${w3Num(x.tiempo,1)}</td><td>${w3Safe(x.resultado)}</td><td>${w3Safe(x.dificultad)}</td><td>${w3Safe(x.comentario)}</td><td><button class="btn sec" onclick="w4Eliminar('pruebas',${x.id})">Eliminar</button></td></tr>`).join(''):'<tr><td colspan="8">Aún no se han realizado pruebas registradas.</td></tr>';
+ w3Get('w4TablaMejoras').innerHTML=w4Mejoras.length?w4Mejoras.map(x=>`<tr><td>${w3Safe(x.fecha)}</td><td>${w3Safe(x.problema)}</td><td>${w3Safe(x.accion)}</td><td>${w3Safe(x.estado)}</td><td><button class="btn sec" onclick="w4Eliminar('mejoras',${x.id})">Eliminar</button></td></tr>`).join(''):'<tr><td colspan="5">Aún no hay mejoras registradas.</td></tr>';
+}
+function w4Exportar(tipo){const pruebas=tipo==='pruebas';const arr=pruebas?w4Pruebas:w4Mejoras;
+ if(!arr.length){alert('No hay registros para exportar.');return}
+ const keys=pruebas?['participante','fecha','tarea','tiempo','resultado','dificultad','comentario']:['fecha','problema','accion','estado'];
+ w3BlobDownload(w3CSV([keys,...arr.map(x=>keys.map(k=>x[k]))]),`eco-semana4-${tipo}.csv`,'text/csv;charset=utf-8')}
+function w4CalcularSCI(){const ids=['w4E','w4I','w4M','w4R'];const raw=ids.map(id=>w3Get(id).value),n=raw.map(Number),fuente=w3Get('w4Fuente').value.trim();
+ if(raw.some(x=>x==='')||n.some(x=>!Number.isFinite(x)||x<0)||n[3]<=0||!fuente){w3Get('w4ResultadoSCI').textContent='Completa E, I, M, R (> 0) y una fuente/metodología documentada.';return}
+ const resultado=((n[0]*n[1])+n[2])/n[3];w3Get('w4ResultadoSCI').textContent=`SCI estimado: ${w3Num(resultado,4)} gCO₂eq/visita. Emisiones operacionales: ${w3Num(n[0]*n[1])} gCO₂eq. Emisiones incorporadas asignadas: ${w3Num(n[2])} gCO₂eq. Fuente/supuestos: ${fuente}.`;
+ localStorage.setItem(w4SCIKey,JSON.stringify({valores:raw,fuente,resultado,fecha:new Date().toISOString()}));
+}
+function w4Inicio(){const t=w3Tarifa();if(t){w3Get('w3Tarifa').value=t.valor;w3Get('w3FuenteTarifa').value=t.fuente;w3Get('w3FechaTarifa').value=t.fecha}
+ w3Get('w4Fecha').value=new Date().toISOString().slice(0,10);
+ try{const s=JSON.parse(localStorage.getItem(w4SCIKey)||'null');if(s){['w4E','w4I','w4M','w4R'].forEach((id,i)=>w3Get(id).value=s.valores[i]);w3Get('w4Fuente').value=s.fuente;w4CalcularSCI()}}catch(e){}
+ w4Render();w3Actualizar()}
+
 </script>
 
 <style>
@@ -371,6 +471,12 @@ footer{
 .w3-green{background:#d5f1e4;color:#126343}.w3-yellow{background:#fff0c9;color:#815600}.w3-red{background:#fde3df;color:#a22f25}
 .w3-controls label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:650}
 .w3-controls input,.w3-controls select{max-width:260px}
+/* Semana 4 */
+.w4-field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:190px;font-size:13px;font-weight:600}
+.w4-field input,.w4-field select,.w4-field textarea{width:100%;min-width:0}
+.w4-field textarea{min-height:74px;padding:8px;border:1px solid var(--bd);border-radius:8px;font:inherit}
+.w4-status{font-size:13px;color:var(--g7);font-weight:600;min-height:20px}
+.w4-actions{display:flex;gap:8px;flex-wrap:wrap}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
@@ -407,6 +513,9 @@ footer{
 <a href="#graficos">Gráficos</a>
 <a href="#semaforo">Semáforo</a>
 <a href="#liga-verde">Liga Verde</a>
+<a href="#validacion">Validación</a>
+<a href="#sci">SCI</a>
+<a href="#mejoras">Mejoras</a>
 
 </nav>
 
@@ -1006,6 +1115,19 @@ mediciones reales del proyecto.
 <section id="graficos"><h2>Gráficos y comparación de instituciones</h2><div class="w3-grid"><div class="card"><h3>Consumo mensual estimado por institución</h3><div class="w3-chart"><canvas id="w3ChartInst"></canvas></div></div><div class="card"><h3>Tendencia mensual ilustrativa</h3><div class="w3-chart"><canvas id="w3ChartMes"></canvas></div></div></div><p class="w3-note">Comparación normalizada por kWh/equipo. La tendencia usa la misma estimación mensual repetida para seis meses: no se presenta como historial medido.</p></section>
 <section id="semaforo"><h2>Semáforo de carbono (M2)</h2><div class="card"><p class="w3-note">Demostración educativa por escenarios, no intensidad de carbono horaria real. Para recomendar horarios reales se requiere integrar datos horarios del Coordinador Eléctrico Nacional.</p><div class="row w3-controls"><label>Escenario de generación<select id="w3Escenario" onchange="w3Actualizar()"><option value="baja">Mayor participación de fuentes bajas en carbono</option><option value="media">Mezcla intermedia</option><option value="alta">Mayor participación de fuentes emisoras</option></select></label></div><p><span id="w3Luz" class="w3-light"></span></p><p id="w3Consejo"></p></div></section>
 <section id="liga-verde"><h2>Liga Verde de Laboratorios (M10)</h2><div class="card"><p class="w3-note">Ranking ilustrativo de menor consumo mensual estimado por equipo (kWh/equipo). Se calcula solo con los modelos inventariados; no acredita eficiencia real ni reducciones medidas.</p><div class="tw"><table><thead><tr><th>Posición</th><th>Institución</th><th>kWh/equipo/mes</th><th>Insignia ilustrativa</th></tr></thead><tbody id="w3TablaLiga"></tbody></table></div><p class="w3-note">Meta sugerida: reducir 5 % del consumo estimado respecto de una línea base verificada. Las insignias son demostrativas hasta contar con mediciones.</p></div></section>
+
+
+<!-- SEMANA 4: VALIDACIÓN Y CIERRE -->
+<section id="validacion"><h2>Semana 4 · Pruebas con usuarios</h2>
+<div class="card"><h3>Registrar una prueba real</h3><p class="small">Realiza las pruebas con tres personas externas al equipo. Registra únicamente observaciones reales; los datos quedan guardados en este navegador.</p>
+<div class="row"><label class="w4-field">Participante (código o seudónimo)<input id="w4Participante" placeholder="Ej.: P01"></label><label class="w4-field">Fecha de prueba<input id="w4Fecha" type="date"></label><label class="w4-field">Tarea evaluada<select id="w4Tarea"><option>Registrar institución</option><option>Registrar inventario</option><option>Consultar mapa</option><option>Comparar consumos</option><option>Descargar reporte</option><option>Otra</option></select></label><label class="w4-field">Tiempo (minutos)<input id="w4Tiempo" type="number" min="0" step="0.1" placeholder="Ej.: 2.5"></label><label class="w4-field">Resultado<select id="w4Resultado"><option value="Completada">Completada</option><option value="Con dificultad">Con dificultad</option><option value="No completada">No completada</option></select></label></div>
+<div class="row"><label class="w4-field">Dificultad o error observado<textarea id="w4Dificultad" placeholder="Qué ocurrió durante la prueba"></textarea></label><label class="w4-field">Comentario del participante<textarea id="w4Comentario" placeholder="Qué dijo el participante"></textarea></label></div>
+<div class="w4-actions"><button class="btn" onclick="w4AgregarPrueba()">Guardar prueba</button><button class="btn sec" onclick="w4Exportar('pruebas')">Exportar pruebas CSV</button></div><p id="w4MsgPrueba" class="w4-status" role="status"></p></div>
+<div class="card" style="margin-top:12px"><h3>Registro de pruebas</h3><div id="w4ResumenPruebas" class="small"></div><div class="tw"><table><thead><tr><th>Participante</th><th>Fecha</th><th>Tarea</th><th>Minutos</th><th>Resultado</th><th>Dificultad</th><th>Comentario</th><th>Acción</th></tr></thead><tbody id="w4TablaPruebas"></tbody></table></div></div></section>
+<section id="sci"><h2>Huella de carbono del software · SCI</h2><div class="card"><p class="small">Calculadora didáctica basada en SCI = ((E × I) + M) / R. E es energía consumida (kWh), I intensidad de carbono (gCO₂eq/kWh), M emisiones incorporadas asignadas (gCO₂eq), R unidades funcionales (por ejemplo, visitas). Los datos ingresados son supuestos o mediciones que debes documentar; el resultado no es una auditoría.</p>
+<div class="row"><label class="w4-field">Energía total E (kWh)<input id="w4E" type="number" min="0" step="any" placeholder="Medición o estimación"></label><label class="w4-field">Intensidad I (gCO₂eq/kWh)<input id="w4I" type="number" min="0" step="any" placeholder="Fuente documentada"></label><label class="w4-field">Emisiones incorporadas M (gCO₂eq)<input id="w4M" type="number" min="0" step="any" placeholder="Asignación documentada"></label><label class="w4-field">Unidades funcionales R (visitas)<input id="w4R" type="number" min="0.000001" step="any" placeholder="Número de visitas"></label></div>
+<div class="row"><label class="w4-field">Fuente y metodología<input id="w4Fuente" placeholder="Documento, período, supuestos"></label><button class="btn" onclick="w4CalcularSCI()">Calcular y guardar</button></div><div id="w4ResultadoSCI" class="card" aria-live="polite">Completa los cuatro valores para calcular.</div><p class="small">Importante: el factor de emisión del inventario está expresado en kgCO₂eq/kWh; para usarlo aquí hay que multiplicarlo por 1.000 para obtener gCO₂eq/kWh. SCI requiere definir claramente el límite del sistema y la unidad funcional.</p></div></section>
+<section id="mejoras"><h2>Registro de errores y mejoras</h2><div class="card"><p class="small">Documenta problemas reales detectados durante las pruebas y el avance de sus correcciones.</p><div class="row"><label class="w4-field">Problema detectado<input id="w4Problema" placeholder="Describe el error o mejora"></label><label class="w4-field">Corrección / acción<input id="w4Accion" placeholder="Qué se hizo o se hará"></label><label class="w4-field">Estado<select id="w4Estado"><option>Pendiente</option><option>En proceso</option><option>Corregido</option></select></label></div><div class="w4-actions"><button class="btn" onclick="w4AgregarMejora()">Registrar mejora</button><button class="btn sec" onclick="w4Exportar('mejoras')">Exportar mejoras CSV</button></div><p id="w4MsgMejora" class="w4-status" role="status"></p></div><div class="card" style="margin-top:12px"><div class="tw"><table><thead><tr><th>Fecha</th><th>Problema</th><th>Acción</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="w4TablaMejoras"></tbody></table></div></div></section>
 
 </main>
 
@@ -2666,9 +2788,110 @@ window.addEventListener(
         renderInventario();
 
         iniciarMapa();
+        w4Inicio();
 
     }
 );
+
+
+/* =====================================================
+   SEMANA 3: FUNCIONES RESTAURADAS
+===================================================== */
+let w3FactorMeta={fuente:'config.json (verificar fuente)',anio:'No especificado'};
+const w3Get=(id)=>document.getElementById(id);
+const w3Safe=(x)=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const w3Num=(n,d=2)=>Number(n||0).toLocaleString('es-CL',{minimumFractionDigits:d,maximumFractionDigits:d});
+let w3ChartA=null,w3ChartB=null;
+function w3Tarifa(){try{return JSON.parse(localStorage.getItem('eco_tarifa_w3')||'null')}catch(e){return null}}
+function w3GuardarTarifa(){
+ const v=w3Get('w3Tarifa').value,fuente=w3Get('w3FuenteTarifa').value.trim(),fecha=w3Get('w3FechaTarifa').value;
+ if(v===''||!Number.isFinite(Number(v))||Number(v)<=0||!fuente||!fecha){w3Get('w3AvisoTarifa').textContent='Ingresa una tarifa positiva, su fuente y fecha de vigencia.';return}
+ localStorage.setItem('eco_tarifa_w3',JSON.stringify({valor:Number(v),fuente,fecha}));
+ w3Get('w3AvisoTarifa').textContent='Tarifa referencial guardada en este navegador (no verificada automáticamente).';w3Actualizar();
+}
+function w3Datos(){return instituciones.map(inst=>{
+ const items=inventario.filter(x=>Number(x.institucionId)===Number(inst.id));
+ const pcs=items.reduce((a,x)=>a+Number(x.cantidad||0),0);
+ const kwh=items.reduce((a,x)=>a+Number(x.cantidad||0)*Number(x.espera||0)/1000*H*W,0);
+ return {inst,pcs,kwh,emisiones:kwh*F,porPC:pcs?kwh/pcs:null};
+})}
+function w3Actualizar(){
+ if(!w3Get('w3TablaCostos'))return;
+ const datos=w3Datos(),tarifa=w3Tarifa();
+ w3Get('w3TablaCostos').innerHTML=datos.map(x=>`<tr><td>${w3Safe(x.inst.nombre)}</td><td>${x.pcs}</td><td>${w3Num(x.kwh)} kWh</td><td>${w3Num(x.emisiones)} kg CO₂eq</td><td>${tarifa?'$'+w3Num(x.kwh*tarifa.valor,0):'Sin tarifa documentada'}</td></tr>`).join('');
+ const sel=w3Get('w3InstReporte'),prev=sel.value;
+ sel.innerHTML=instituciones.map(x=>`<option value="${x.id}">${w3Safe(x.nombre)}</option>`).join('');
+ if(instituciones.some(x=>String(x.id)===prev))sel.value=prev;
+ if(!w3Get('w3Mes').value)w3Get('w3Mes').value=new Date().toISOString().slice(0,7);
+ const x=datos.find(x=>String(x.inst.id)===sel.value);
+ w3Get('w3ResumenReporte').innerHTML=x?`<div class="card"><div class="k">Consumo estimado</div><div class="w3-stat">${w3Num(x.kwh)} kWh</div></div><div class="card"><div class="k">Emisiones estimadas</div><div class="w3-stat">${w3Num(x.emisiones)} kg CO₂eq</div></div><div class="card"><div class="k">Costo de energía</div><div class="w3-stat">${tarifa?'$'+w3Num(x.kwh*tarifa.valor,0):'Sin tarifa'}</div></div>`:'<p>No hay instituciones.</p>';
+ const rank=datos.filter(x=>x.pcs>0).sort((a,b)=>a.porPC-b.porPC);
+ w3Get('w3TablaLiga').innerHTML=rank.length?rank.map((x,i)=>`<tr><td>${i+1}</td><td>${w3Safe(x.inst.nombre)}</td><td>${w3Num(x.porPC)}</td><td>${i===0?'🏅 Referencia ilustrativa':'Participante'}</td></tr>`).join(''):'<tr><td colspan="4">Agrega inventario para comparar.</td></tr>';
+ const estado=w3Get('w3Escenario').value;
+ const sem={baja:['w3-green','Verde · escenario bajo en carbono','En este escenario, la generación tiene menor intensidad de carbono.'],media:['w3-yellow','Amarillo · escenario intermedio','En este escenario, evalúa si es posible desplazar consumos flexibles.'],alta:['w3-red','Rojo · escenario alto en carbono','En este escenario, prioriza evitar consumos innecesarios.']}[estado];
+ w3Get('w3Luz').className='w3-light '+sem[0];w3Get('w3Luz').textContent=sem[1];w3Get('w3Consejo').textContent=sem[2];
+ if(typeof Chart!=='undefined'){
+  if(w3ChartA)w3ChartA.destroy();if(w3ChartB)w3ChartB.destroy();
+  w3ChartA=new Chart(w3Get('w3ChartInst'),{type:'bar',data:{labels:datos.map(x=>x.inst.nombre),datasets:[{label:'kWh por computador/mes',data:datos.map(x=>x.porPC??0),backgroundColor:'#1b7f64'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  const mes=w3Get('w3Mes').value;const meses=Array.from({length:6},(_,i)=>{const [y,m]=mes.split('-').map(Number);return new Date(y,m-1-(5-i),1).toLocaleDateString('es-CL',{month:'short',year:'numeric'})});
+  w3ChartB=new Chart(w3Get('w3ChartMes'),{type:'line',data:{labels:meses,datasets:[{label:'Proyección constante (no histórica), kWh',data:meses.map(()=>datos.reduce((a,x)=>a+x.kwh,0)),borderColor:'#1b7f64',tension:0.1}]},options:{responsive:true,maintainAspectRatio:false}});
+ }
+}
+function w3Reporte(){const x=w3Datos().find(x=>String(x.inst.id)===w3Get('w3InstReporte').value);if(!x)return null;return {x,tarifa:w3Tarifa(),mes:w3Get('w3Mes').value}}
+function w3LineasReporte(){const r=w3Reporte();if(!r)return [];
+ const {x,tarifa,mes}=r;return [
+ 'EcoDashboard Biobío - Reporte mensual estimado',`Mes: ${mes}`,`Institución: ${x.inst.nombre}`,
+ `Equipos inventariados: ${x.pcs}`,`Consumo estimado: ${w3Num(x.kwh)} kWh/mes`,
+ `Emisiones estimadas: ${w3Num(x.emisiones)} kg CO2eq/mes`,
+ `Costo de energía: ${tarifa?w3Num(x.kwh*tarifa.valor,0)+' CLP':'Sin tarifa documentada'}`,
+ `Metodología: suma(cantidad x potencia de espera W / 1000 x ${H} h/semana x ${W} semanas/mes).`,
+ `Factor de emisión: ${F} kg CO2eq/kWh. Fuente: ${w3FactorMeta.fuente}; año: ${w3FactorMeta.anio}.`,
+ `Tarifa: ${tarifa?tarifa.valor+' CLP/kWh; '+tarifa.fuente+'; vigencia '+tarifa.fecha:'No ingresada'}.`,
+ 'Estimación de demostración, no medición de consumo real. El mes es una etiqueta de reporte, no una serie histórica.'
+ ]}
+function w3BlobDownload(content,name,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob(['\ufeff',content],{type}));a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function w3CSV(rows){return rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n')}
+function w3DescargarCSV(){const lines=w3LineasReporte();if(!lines.length)return;w3BlobDownload(w3CSV(lines.map(line=>[line])),`reporte-eco-${w3Get('w3Mes').value}.csv`,'text/csv;charset=utf-8');w3Get('w3ReporteMensaje').textContent='Reporte CSV generado.'}
+function w3DescargarPDF(){const lines=w3LineasReporte();if(!lines.length)return;
+ if(!window.jspdf?.jsPDF){w3Get('w3ReporteMensaje').textContent='No se pudo cargar jsPDF. Comprueba tu conexión a internet.';return}
+ const doc=new window.jspdf.jsPDF();let y=20;for(const line of lines){for(const part of doc.splitTextToSize(line.replace(/CO₂/g,'CO2'),175)){if(y>275){doc.addPage();y=20}doc.text(part,18,y);y+=8}y+=3}
+ doc.save(`reporte-eco-${w3Get('w3Mes').value}.pdf`);w3Get('w3ReporteMensaje').textContent='Reporte PDF generado.'}
+/* =====================================================
+   SEMANA 4: VALIDACIÓN, SCI Y CORRECCIONES
+===================================================== */
+function w4Leer(key){try{const x=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+let w4Pruebas=w4Leer('eco_w4_pruebas'),w4Mejoras=w4Leer('eco_w4_mejoras');
+const w4SCIKey='eco_w4_sci';
+function w4Guardar(){localStorage.setItem('eco_w4_pruebas',JSON.stringify(w4Pruebas));localStorage.setItem('eco_w4_mejoras',JSON.stringify(w4Mejoras))}
+function w4AgregarPrueba(){
+ const participante=w3Get('w4Participante').value.trim(),fecha=w3Get('w4Fecha').value,tiempo=w3Get('w4Tiempo').value;
+ if(!participante||!fecha||tiempo===''||!Number.isFinite(Number(tiempo))||Number(tiempo)<0){w3Get('w4MsgPrueba').textContent='Completa participante, fecha y tiempo válido.';return}
+ w4Pruebas.push({id:Date.now()+Math.random(),participante,fecha,tarea:w3Get('w4Tarea').value,tiempo:Number(tiempo),resultado:w3Get('w4Resultado').value,dificultad:w3Get('w4Dificultad').value.trim(),comentario:w3Get('w4Comentario').value.trim()});
+ w4Guardar();w4Render();w3Get('w4MsgPrueba').textContent='Prueba registrada correctamente.';
+ ['w4Participante','w4Tiempo','w4Dificultad','w4Comentario'].forEach(id=>w3Get(id).value='');
+}
+function w4AgregarMejora(){const problema=w3Get('w4Problema').value.trim(),accion=w3Get('w4Accion').value.trim();if(!problema||!accion){w3Get('w4MsgMejora').textContent='Describe el problema y la acción.';return}
+ w4Mejoras.push({id:Date.now()+Math.random(),fecha:new Date().toLocaleDateString('es-CL'),problema,accion,estado:w3Get('w4Estado').value});w4Guardar();w4Render();w3Get('w4MsgMejora').textContent='Mejora registrada.';w3Get('w4Problema').value='';w3Get('w4Accion').value=''}
+function w4Eliminar(tipo,id){if(!confirm('¿Eliminar este registro?'))return; if(tipo==='pruebas')w4Pruebas=w4Pruebas.filter(x=>x.id!==id);else w4Mejoras=w4Mejoras.filter(x=>x.id!==id);w4Guardar();w4Render()}
+function w4Render(){
+ const participantes=new Set(w4Pruebas.map(x=>x.participante.toLowerCase()));
+ w3Get('w4ResumenPruebas').textContent=`${w4Pruebas.length} pruebas registradas · ${participantes.size} participante(s) distintos · objetivo: 3 personas externas.`;
+ w3Get('w4TablaPruebas').innerHTML=w4Pruebas.length?w4Pruebas.map(x=>`<tr><td>${w3Safe(x.participante)}</td><td>${w3Safe(x.fecha)}</td><td>${w3Safe(x.tarea)}</td><td>${w3Num(x.tiempo,1)}</td><td>${w3Safe(x.resultado)}</td><td>${w3Safe(x.dificultad)}</td><td>${w3Safe(x.comentario)}</td><td><button class="btn sec" onclick="w4Eliminar('pruebas',${x.id})">Eliminar</button></td></tr>`).join(''):'<tr><td colspan="8">Aún no se han realizado pruebas registradas.</td></tr>';
+ w3Get('w4TablaMejoras').innerHTML=w4Mejoras.length?w4Mejoras.map(x=>`<tr><td>${w3Safe(x.fecha)}</td><td>${w3Safe(x.problema)}</td><td>${w3Safe(x.accion)}</td><td>${w3Safe(x.estado)}</td><td><button class="btn sec" onclick="w4Eliminar('mejoras',${x.id})">Eliminar</button></td></tr>`).join(''):'<tr><td colspan="5">Aún no hay mejoras registradas.</td></tr>';
+}
+function w4Exportar(tipo){const pruebas=tipo==='pruebas';const arr=pruebas?w4Pruebas:w4Mejoras;
+ if(!arr.length){alert('No hay registros para exportar.');return}
+ const keys=pruebas?['participante','fecha','tarea','tiempo','resultado','dificultad','comentario']:['fecha','problema','accion','estado'];
+ w3BlobDownload(w3CSV([keys,...arr.map(x=>keys.map(k=>x[k]))]),`eco-semana4-${tipo}.csv`,'text/csv;charset=utf-8')}
+function w4CalcularSCI(){const ids=['w4E','w4I','w4M','w4R'];const raw=ids.map(id=>w3Get(id).value),n=raw.map(Number),fuente=w3Get('w4Fuente').value.trim();
+ if(raw.some(x=>x==='')||n.some(x=>!Number.isFinite(x)||x<0)||n[3]<=0||!fuente){w3Get('w4ResultadoSCI').textContent='Completa E, I, M, R (> 0) y una fuente/metodología documentada.';return}
+ const resultado=((n[0]*n[1])+n[2])/n[3];w3Get('w4ResultadoSCI').textContent=`SCI estimado: ${w3Num(resultado,4)} gCO₂eq/visita. Emisiones operacionales: ${w3Num(n[0]*n[1])} gCO₂eq. Emisiones incorporadas asignadas: ${w3Num(n[2])} gCO₂eq. Fuente/supuestos: ${fuente}.`;
+ localStorage.setItem(w4SCIKey,JSON.stringify({valores:raw,fuente,resultado,fecha:new Date().toISOString()}));
+}
+function w4Inicio(){const t=w3Tarifa();if(t){w3Get('w3Tarifa').value=t.valor;w3Get('w3FuenteTarifa').value=t.fuente;w3Get('w3FechaTarifa').value=t.fecha}
+ w3Get('w4Fecha').value=new Date().toISOString().slice(0,10);
+ try{const s=JSON.parse(localStorage.getItem(w4SCIKey)||'null');if(s){['w4E','w4I','w4M','w4R'].forEach((id,i)=>w3Get(id).value=s.valores[i]);w3Get('w4Fuente').value=s.fuente;w4CalcularSCI()}}catch(e){}
+ w4Render();w3Actualizar()}
 
 </script>
 
