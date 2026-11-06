@@ -57,10 +57,14 @@ dialog::backdrop{background:#0007}
 input{font:inherit;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;width:220px}
 footer{text-align:center;color:var(--mu);font-size:13px;padding:10px 20px 30px}
 </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 <header>
   <h1>🌱 EcoDashboard TI</h1>
+  <h2>Mapa de Instituciones Monitoreadas - Biobío</h2>
+<div id="mapa-biobio" style="height: 400px; width: 100%; border-radius: 8px; margin-top: 20px; border: 2px solid #ccc;"></div>
   <nav aria-label="Secciones">
     <a href="#panel">Panel</a><a href="#labs">Laboratorios</a><a href="#alertas">Alertas</a><a href="#impacto">Impacto ambiental</a><a href="#ods">ODS</a><a href="#historial">Historial</a>
   </nav>
@@ -208,6 +212,31 @@ fetch('config.json')
     console.error("Usando valores por defecto. No se pudo cargar config.json:", error);
     render();
   });
+</script>
+  <script>
+ 
+  var map = L.map('mapa-biobio').setView([-37.4697, -72.3536], 13);
+
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+
+  L.marker([-37.4697, -72.3536]).addTo(map)
+    .bindPopup('<b>IP Virginio Gómez</b><br>Sede Los Ángeles.<br><i>Consumo: 63.8 W</i>').openPopup();
+
+  L.marker([-37.4721, -72.3548]).addTo(map)
+    .bindPopup('<b>Universidad de Concepción</b><br>Sede Los Ángeles.');
+
+  L.marker([-37.4755, -72.3486]).addTo(map)
+    .bindPopup('<b>Hospital Base Los Ángeles</b><br>Área Administrativa.');
+
+  L.marker([-37.4649, -72.3524]).addTo(map)
+    .bindPopup('<b>Municipalidad de Los Ángeles</b><br>Oficinas Centrales.');
+
+  L.marker([-37.4601, -72.3589]).addTo(map)
+    .bindPopup('<b>Liceo Industrial</b><br>Laboratorio Técnico.');
 </script>
 </body>
 </html>
